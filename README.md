@@ -85,10 +85,6 @@ The application uses two quantum computing approaches to enhance classical anoma
 
 Both methods run on Qiskit's quantum simulators and do not require access to real quantum hardware.
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
 ## Acknowledgments
 
 - [Qiskit](https://qiskit.org/) - IBM's open-source quantum computing framework
