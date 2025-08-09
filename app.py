@@ -677,10 +677,10 @@ if st.session_state.processed_data is not None:
                         st.plotly_chart(fig_cm, use_container_width=True)
                         st.write("Classification Report:")
                         st.code(classification_report(true_labels, predicted_labels))
-                    else:
-                        st.warning("Cannot display confusion matrix: Mismatch between true labels and predicted scores length.")
-                else:
-                    st.info("Upload data with a 'label' column to see Confusion Matrix and Classification Report.")
+    else:
+        st.warning("Cannot display confusion matrix: Mismatch between true labels and predicted scores length.")
+else:
+    st.info("Upload data with a 'label' column to see Confusion Matrix and Classification Report.")
 
                 # Feature Importance (if applicable and model supports it)
                 # This part would depend on how you extract feature importance from your models
@@ -690,8 +690,7 @@ if st.session_state.processed_data is not None:
                 # fig_fi = plot_feature_importance(feature_names, feature_importances)
                 # st.plotly_chart(fig_fi, use_container_width=True)
 
-        else:
-            st.info("Please load data to proceed with anomaly detection.")
+
 
 # This section is for the original simulation mode's data loading and analysis trigger
 # It should only be active if MODE is 'simulation' and processed_data is not yet available
@@ -699,38 +698,38 @@ if MODE == 'simulation' and st.session_state.processed_data is None:
     # Data loading options
     data_option = st.radio("Select data source:", ["Upload CSV", "Use sample data"])
 
-    if data_option == "Upload CSV":
-        uploaded_file = st.file_uploader("Upload network log file (CSV)", type=["csv"])
-        if uploaded_file is not None:
-            try:
-                st.session_state.data = pd.read_csv(uploaded_file)
-                st.success(f"Loaded data with {st.session_state.data.shape[0]} rows and {st.session_state.data.shape[1]} columns")
-            except Exception as e:
-                st.error(f"Error loading file: {e}")
-    else:
-        dataset_option = st.selectbox("Select sample dataset:", ["CICIDS2017 (Subset)", "KDD99 (Subset)"])
-        if st.button("Load Sample Data"):
-            with st.spinner("Loading sample data..."):
-                st.session_state.data = load_sample_data(dataset_option)
-                st.success(f"Loaded {dataset_option} with {st.session_state.data.shape[0]} rows")
+if data_option == "Upload CSV":
+    uploaded_file = st.file_uploader("Upload network log file (CSV)", type=["csv"])
+    if uploaded_file is not None:
+        try:
+            st.session_state.data = pd.read_csv(uploaded_file)
+            st.success(f"Loaded data with {st.session_state.data.shape[0]} rows and {st.session_state.data.shape[1]} columns")
+        except Exception as e:
+            st.error(f"Error loading file: {e}")
+else:
+    dataset_option = st.selectbox("Select sample dataset:", ["CICIDS2017 (Subset)", "KDD99 (Subset)"])
+if st.button("Load Sample Data"):
+    with st.spinner("Loading sample data..."):
+        st.session_state.data = load_sample_data(dataset_option)
+        st.success(f"Loaded {dataset_option} with {st.session_state.data.shape[0]} rows")
 
-    # Model parameters (only for simulation mode when running analysis manually)
-    st.markdown("### Model Parameters")
+# Model parameters (only for simulation mode when running analysis manually)
+st.markdown("### Model Parameters")
 
-    # Classical model parameters
-    n_estimators = st.slider("Number of estimators (Isolation Forest)", 50, 500, 100, 50)
-    contamination = st.slider("Expected contamination rate", 0.01, 0.5, 0.1, 0.01)
+# Classical model parameters
+n_estimators = st.slider("Number of estimators (Isolation Forest)", 50, 500, 100, 50)
+contamination = st.slider("Expected contamination rate", 0.01, 0.5, 0.1, 0.01)
 
-    # Quantum model parameters
-    use_quantum = st.checkbox("Enable quantum enhancement", True)
-    if use_quantum:
-        quantum_backend = st.selectbox("Quantum Backend", ["qasm_simulator", "statevector_simulator"])
-        quantum_shots = st.slider("Number of shots", 100, 2000, 1000, 100)
+# Quantum model parameters
+use_quantum = st.checkbox("Enable quantum enhancement", True)
+if use_quantum:
+    quantum_backend = st.selectbox("Quantum Backend", ["qasm_simulator", "statevector_simulator"])
+    quantum_shots = st.slider("Number of shots", 100, 2000, 1000, 100)
 
-    # Threshold for anomaly detection
-    st.session_state.threshold = st.slider("Anomaly threshold", -1.0, 0.0, -0.5, 0.05)
+# Threshold for anomaly detection
+st.session_state.threshold = st.slider("Anomaly threshold", -1.0, 0.0, -0.5, 0.05)
 
-    run_button = st.button("Run Analysis")
+run_button = st.button("Run Analysis")
 
 # Main content area for simulation mode's manual run
 if st.session_state.data is not None and run_button:
@@ -738,106 +737,106 @@ if st.session_state.data is not None and run_button:
         # Preprocess the data
         st.session_state.processed_data = preprocess_data(st.session_state.data)
 
-        # Run classical anomaly detection (Isolation Forest)
-        model = IsolationForest(
-            n_estimators=n_estimators,
-            contamination=contamination,
-            random_state=42
+    # Run classical anomaly detection (Isolation Forest)
+    model = IsolationForest(
+        n_estimators=n_estimators,
+        contamination=contamination,
+        random_state=42
+    )
+
+    # Fit the model and get anomaly scores
+    model.fit(st.session_state.processed_data)
+    st.session_state.anomaly_scores = model.decision_function(st.session_state.processed_data)
+
+    # If quantum enhancement is enabled, apply quantum model
+    if use_quantum:
+        quantum_detector = QuantumAnomalyDetector(
+            backend=quantum_backend,
+            shots=quantum_shots
         )
+        st.session_state.quantum_enhanced_scores = quantum_detector.enhance_anomaly_detection(
+            st.session_state.processed_data,
+            st.session_state.anomaly_scores
+        )
+        # Use quantum-enhanced scores for predictions
+        predictions = (st.session_state.quantum_enhanced_scores < st.session_state.threshold).astype(int)
+    else:
+        # Use classical scores for predictions
+        predictions = (st.session_state.anomaly_scores < st.session_state.threshold).astype(int)
+        st.session_state.quantum_enhanced_scores = None
 
-        # Fit the model and get anomaly scores
-        model.fit(st.session_state.processed_data)
-        st.session_state.anomaly_scores = model.decision_function(st.session_state.processed_data)
+    # Add predictions to the original data
+    results_df = st.session_state.data.copy()
+    results_df['anomaly_score'] = st.session_state.anomaly_scores
+    if st.session_state.quantum_enhanced_scores is not None:
+        results_df['quantum_enhanced_score'] = st.session_state.quantum_enhanced_scores
+    results_df['is_anomaly'] = predictions
 
-            # If quantum enhancement is enabled, apply quantum model
-            if use_quantum:
-                quantum_detector = QuantumAnomalyDetector(
-                    backend=quantum_backend,
-                    shots=quantum_shots
-                )
-                st.session_state.quantum_enhanced_scores = quantum_detector.enhance_anomaly_detection(
-                    st.session_state.processed_data,
-                    st.session_state.anomaly_scores
-                )
-                # Use quantum-enhanced scores for predictions
-                predictions = (st.session_state.quantum_enhanced_scores < st.session_state.threshold).astype(int)
-            else:
-                # Use classical scores for predictions
-                predictions = (st.session_state.anomaly_scores < st.session_state.threshold).astype(int)
-                st.session_state.quantum_enhanced_scores = None
+    # Display results
+    st.markdown('<h2 class="sub-header">Analysis Results</h2>', unsafe_allow_html=True)
 
-            # Add predictions to the original data
-            results_df = st.session_state.data.copy()
-            results_df['anomaly_score'] = st.session_state.anomaly_scores
-            if st.session_state.quantum_enhanced_scores is not None:
-                results_df['quantum_enhanced_score'] = st.session_state.quantum_enhanced_scores
-            results_df['is_anomaly'] = predictions
+    # Summary metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Records", st.session_state.data.shape[0])
+    with col2:
+        st.metric("Detected Anomalies", predictions.sum())
+    with col3:
+        st.metric("Anomaly Rate", f"{predictions.sum() / len(predictions):.2%}")
 
-            # Display results
-            st.markdown('<h2 class="sub-header">Analysis Results</h2>', unsafe_allow_html=True)
+    # Visualizations
+    st.markdown('<h3 class="sub-header">Visualization</h3>', unsafe_allow_html=True)
 
-            # Summary metrics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Records", st.session_state.data.shape[0])
-            with col2:
-                st.metric("Detected Anomalies", predictions.sum())
-            with col3:
-                st.metric("Anomaly Rate", f"{predictions.sum() / len(predictions):.2%}")
+    # Anomaly score distribution
+    fig_scores = plot_anomaly_scores(
+        classical_scores=st.session_state.anomaly_scores,
+        quantum_scores=st.session_state.quantum_enhanced_scores,
+        threshold=st.session_state.threshold
+    )
+    st.plotly_chart(fig_scores, use_container_width=True)
 
-            # Visualizations
-            st.markdown('<h3 class="sub-header">Visualization</h3>', unsafe_allow_html=True)
+    # Time series plot if timestamp column exists
+    timestamp_cols = [col for col in results_df.columns if 'time' in col.lower() or 'date' in col.lower()]
+    if timestamp_cols:
+        try:
+            time_col = timestamp_cols[0]
+            # Convert to datetime if not already
+            if not pd.api.types.is_datetime64_any_dtype(results_df[time_col]):
+                results_df[time_col] = pd.to_datetime(results_df[time_col], errors='coerce')
 
-            # Anomaly score distribution
-            fig_scores = plot_anomaly_scores(
-                classical_scores=st.session_state.anomaly_scores,
-                quantum_scores=st.session_state.quantum_enhanced_scores,
-                threshold=st.session_state.threshold
-            )
-            st.plotly_chart(fig_scores, use_container_width=True)
+            # Create time series plot
+            fig_time = px.scatter(
+                results_df.sort_values(time_col),
+                x=time_col,
+            y='anomaly_score' if st.session_state.quantum_enhanced_scores is None else 'quantum_enhanced_score',
+            color='is_anomaly',
+            color_discrete_map={0: 'blue', 1: 'red'},
+            title="Anomaly Scores Over Time",
+            labels={"is_anomaly": "Is Anomaly"},
+            hover_data=results_df.columns[:5].tolist()
+        )
+            st.plotly_chart(fig_time, use_container_width=True)
+        except Exception as e:
+            st.warning(f"Could not create time series plot: {e}")
 
-            # Time series plot if timestamp column exists
-            timestamp_cols = [col for col in results_df.columns if 'time' in col.lower() or 'date' in col.lower()]
-            if timestamp_cols:
-                try:
-                    time_col = timestamp_cols[0]
-                    # Convert to datetime if not already
-                    if not pd.api.types.is_datetime64_any_dtype(results_df[time_col]):
-                        results_df[time_col] = pd.to_datetime(results_df[time_col], errors='coerce')
+    # Display anomalous records
+    st.markdown('<h3 class="sub-header">Detected Anomalies</h3>', unsafe_allow_html=True)
+    anomalies = results_df[results_df['is_anomaly'] == 1]
+    if len(anomalies) > 0:
+        st.dataframe(anomalies)
 
-                    # Create time series plot
-                    fig_time = px.scatter(
-                        results_df.sort_values(time_col),
-                        x=time_col,
-                        y='anomaly_score' if st.session_state.quantum_enhanced_scores is None else 'quantum_enhanced_score',
-                        color='is_anomaly',
-                        color_discrete_map={0: 'blue', 1: 'red'},
-                        title="Anomaly Scores Over Time",
-                        labels={"is_anomaly": "Is Anomaly"},
-                        hover_data=results_df.columns[:5].tolist()
-                    )
-                    st.plotly_chart(fig_time, use_container_width=True)
-                except Exception as e:
-                    st.warning(f"Could not create time series plot: {e}")
-
-            # Display anomalous records
-            st.markdown('<h3 class="sub-header">Detected Anomalies</h3>', unsafe_allow_html=True)
-            anomalies = results_df[results_df['is_anomaly'] == 1]
-            if len(anomalies) > 0:
-                st.dataframe(anomalies)
-
-                # Download results button
-                csv_buffer = io.StringIO()
-                anomalies.to_csv(csv_buffer, index=False)
-                csv_str = csv_buffer.getvalue()
-                st.download_button(
-                    label="Download Anomalies CSV",
-                    data=csv_str,
-                    file_name=f"anomalies_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.info("No anomalies detected with the current threshold.")
+        # Download results button
+        csv_buffer = io.StringIO()
+        anomalies.to_csv(csv_buffer, index=False)
+        csv_str = csv_buffer.getvalue()
+        st.download_button(
+            label="Download Anomalies CSV",
+            data=csv_str,
+            file_name=f"anomalies_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("No anomalies detected with the current threshold.")
 
 else:
     # Display instructions when no data is loaded
@@ -909,19 +908,19 @@ else:
     """)
 
 
-                    st.write(f"Detected **{num_anomalies}** anomalies out of {len(final_scores)} records.")
+st.write(f"Detected **{num_anomalies}** anomalies out of {len(final_scores)} records.")
 
-                    # Display anomalies
-                    if st.session_state.data is not None:
-                        st.markdown('<h3 class="sub-header">Anomalous Records Preview</h3>', unsafe_allow_html=True)
-                        # Ensure original data has same index as scores
-                        original_data_with_scores = st.session_state.data.copy()
-                        original_data_with_scores['anomaly_score'] = final_scores
-                        original_data_with_scores['is_anomaly'] = anomalies
-                        st.write(original_data_with_scores[original_data_with_scores['is_anomaly']].head(10))
+    # Display anomalies
+if st.session_state.data is not None:
+    st.markdown('<h3 class="sub-header">Anomalous Records Preview</h3>', unsafe_allow_html=True)
+    # Ensure original data has same index as scores
+    original_data_with_scores = st.session_state.data.copy()
+    original_data_with_scores['anomaly_score'] = final_scores
+    original_data_with_scores['is_anomaly'] = anomalies
+    st.write(original_data_with_scores[original_data_with_scores['is_anomaly']].head(10))
 
-                        # Confusion Matrix (if labels are available)
-                        if 'label' in st.session_state.data.columns:
+    # Confusion Matrix (if labels are available)
+    if 'label' in st.session_state.data.columns:
                             st.markdown('<h3 class="sub-header">Confusion Matrix</h3>', unsafe_allow_html=True)
                             true_labels = st.session_state.data['label'].values
                             # Convert anomaly scores to binary predictions based on threshold
@@ -934,31 +933,31 @@ else:
                                 st.code(classification_report(true_labels, predicted_labels))
                             else:
                                 st.warning("Cannot display confusion matrix: Mismatch between true labels and predicted scores length.")
-                        else:
-                            st.info("Upload data with a 'label' column to see Confusion Matrix and Classification Report.")
-
-                        # Feature Importance (if applicable and model supports it)
-                        # This part would depend on how you extract feature importance from your models
-                        # For Isolation Forest, you might look at feature contributions or build a separate explainer
-                        # For now, this is a placeholder.
-                        # st.markdown('<h3 class="sub-header">Feature Importance</h3>', unsafe_allow_html=True)
-                        # fig_fi = plot_feature_importance(feature_names, feature_importances)
-                        # st.plotly_chart(fig_fi, use_container_width=True)
-
     else:
-        st.info("Please load data to proceed with anomaly detection.")
-        
-        # Data loading options
-        data_option = st.radio("Select data source:", ["Upload CSV", "Use sample data"])
-        
-        if data_option == "Upload CSV":
-            uploaded_file = st.file_uploader("Upload network log file (CSV)", type=["csv"])
-            if uploaded_file is not None:
-                try:
-                    st.session_state.data = pd.read_csv(uploaded_file)
-                    st.success(f"Loaded data with {st.session_state.data.shape[0]} rows and {st.session_state.data.shape[1]} columns")
-                except Exception as e:
-                    st.error(f"Error loading file: {e}")
+        st.info("Upload data with a 'label' column to see Confusion Matrix and Classification Report.")
+
+            # Feature Importance (if applicable and model supports it)
+            # This part would depend on how you extract feature importance from your models
+            # For Isolation Forest, you might look at feature contributions or build a separate explainer
+            # For now, this is a placeholder.
+            # st.markdown('<h3 class="sub-header">Feature Importance</h3>', unsafe_allow_html=True)
+            # fig_fi = plot_feature_importance(feature_names, feature_importances)
+            # st.plotly_chart(fig_fi, use_container_width=True)
+
+else:
+    st.info("Please load data to proceed with anomaly detection.")
+    
+    # Data loading options
+    data_option = st.radio("Select data source:", ["Upload CSV", "Use sample data"])
+    
+    if data_option == "Upload CSV":
+        uploaded_file = st.file_uploader("Upload network log file (CSV)", type=["csv"])
+        if uploaded_file is not None:
+            try:
+                st.session_state.data = pd.read_csv(uploaded_file)
+                st.success(f"Loaded data with {st.session_state.data.shape[0]} rows and {st.session_state.data.shape[1]} columns")
+            except Exception as e:
+                st.error(f"Error loading file: {e}")
         else:
             dataset_option = st.selectbox("Select sample dataset:", ["CICIDS2017 (Subset)", "KDD99 (Subset)"])
             if st.button("Load Sample Data"):
